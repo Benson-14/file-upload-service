@@ -12,6 +12,7 @@ import (
 	"github.com/Benson-14/file-upload-service/internal/db"
 	"github.com/Benson-14/file-upload-service/internal/handler"
 	"github.com/Benson-14/file-upload-service/internal/middleware"
+	"github.com/Benson-14/file-upload-service/internal/storage"
 	"github.com/joho/godotenv"
 )
 
@@ -30,15 +31,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.MkdirAll(cfg.App.Storage, 0755); err != nil {
-		slog.Error("error creating storage directory: " + err.Error())
+	s3Client, err := storage.NewS3Client(cfg)
+	if err != nil {
+		slog.Error("error initialising S3 client: " + err.Error())
 		os.Exit(1)
 	}
 
+	h := &handler.Handler{S3: s3Client}
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", handler.Health)
-	mux.HandleFunc("POST /upload", handler.UploadFile)
+	mux.HandleFunc("GET /health", h.Health)
+	mux.HandleFunc("POST /upload", h.UploadFile)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.App.Port),

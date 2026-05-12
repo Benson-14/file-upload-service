@@ -2,18 +2,21 @@ package handler
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
+
+	"github.com/Benson-14/file-upload-service/internal/storage"
 )
 
-func Health(w http.ResponseWriter, r *http.Request) {
+type Handler struct {
+	S3 *storage.S3Client
+}
+
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	slog.Info("The server is Healthy")
 }
 
-func UploadFile(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	file, fileHandler, err := r.FormFile("file")
 	if err != nil {
 		slog.Error("error getting the file: " + err.Error())
@@ -22,21 +25,9 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// slog.Info("file name is " + fileHandler.Filename)
-	// slog.Info(fmt.Sprintf("file size is %d bytes", fileHandler.Size))
-
-	newFilePath := filepath.Join(os.Getenv("STORAGE"), fileHandler.Filename)
-	newFile, err := os.Create(newFilePath)
+	err = h.S3.Upload(r.Context(), fileHandler.Filename, file, fileHandler.Size)
 	if err != nil {
-		slog.Error("error creating the file: " + err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer newFile.Close()
-
-	_, err = io.Copy(newFile, file)
-	if err != nil {
-		slog.Error("error copying the file: " + err.Error())
+		slog.Error("error uploading file to S3: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
